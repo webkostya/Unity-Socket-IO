@@ -4,31 +4,20 @@ using System.Dynamic;
 using UnityEngine;
 using System;
 
-public class SocketIO
+public class SocketIO: MonoBehaviour
 {
+    public int port = 3000;
+    public string host = "ws://127.0.0.1";
+
     private struct EventMessage
     {
         public string[] data;
     }
-
-    private int type = 4;
+    
     private bool connected;
-    private string protocol = "ws";
-    private string transport = "websocket";
-
     private WebSocket socket;
     private Dictionary<string, Action<string>> events;
-
-    public SocketIO (string host, int port)
-    {
-        socket = new WebSocket($"{protocol}://{host}:{port}/socket.io/?EIO={type}&transport={transport}");
-        events = new Dictionary<string, Action<string>>();
-
-        socket.OnOpen += OnOpen;
-        socket.OnClose += OnClose;
-        socket.OnError += OnError;
-        socket.OnMessage += OnMessage;
-    }
+    private Queue<Action> execute = new Queue<Action>();
 
     #region Public Properties
 
@@ -46,7 +35,7 @@ public class SocketIO
     {
         if (!connected) return;
 
-        socket.Send($"42[\"{name}\", {data}]");
+        socket.SendAsync($"42[\"{name}\", {data}]", null);
     }
 
     public void Connect ()
@@ -67,22 +56,59 @@ public class SocketIO
 
     #region Private Properties
 
+    private void Start ()
+    {
+        socket = new WebSocket($"{host}:{port}/socket.io/?EIO=4&transport=websocket");
+        events = new Dictionary<string, Action<string>>();
+
+        socket.OnOpen += OnOpen;
+        socket.OnClose += OnClose;
+        socket.OnError += OnError;
+        socket.OnMessage += OnMessage;
+    }
+
+    private void Update ()
+    {
+        while (execute.Count > 0)
+        {
+            execute.Dequeue().Invoke();
+        }
+    }
+
     private void OnOpen (object sender, EventArgs args)
     {
         connected = true;
-        events["connection"]?.Invoke(args.ToString());
+
+        if (events.ContainsKey("connection"))
+        {
+            execute.Enqueue(delegate {
+                events["connection"].Invoke(args.ToString());
+            });
+        }
     }
 
     private void OnClose (object sender, EventArgs args)
     {
         connected = false;
-        events["disconnect"]?.Invoke(args.ToString());
+
+        if (events.ContainsKey("disconnect"))
+        {
+            execute.Enqueue(delegate {
+                events["disconnect"].Invoke(args.ToString());
+            });
+        }
     }
 
     private void OnError (object sender, ErrorEventArgs args)
     {
         connected = false;
-        events["error"]?.Invoke(args.Message);
+
+        if (events.ContainsKey("error"))
+        {
+            execute.Enqueue(delegate {
+                events["error"].Invoke(args.Message);
+            });
+        }
     }
 
     private void OnMessage (object sender, MessageEventArgs response)
@@ -98,7 +124,11 @@ public class SocketIO
                     var decoder = Decoder(response.Data);
 
                     if (events.ContainsKey(decoder.name))
-                        events[decoder.name]?.Invoke(decoder.data);   
+                    {
+                        execute.Enqueue(delegate {
+                            events[decoder.name](decoder.data);
+                        });
+                    }
                 }
             }
         }

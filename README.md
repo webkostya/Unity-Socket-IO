@@ -7,10 +7,12 @@ using UnityEngine;
 
 public class Example: MonoBehaviour
 {
+    private SocketIO socket;
+
     private void Start ()
     {
-        // New Instance
-        socket = new SocketIO("127.0.0.1", 3000);
+        // Get Component SocketIO
+        socket = GetComponent<SocketIO>();
 
         // Event Listeners
         socket.On("connection", EventHandler);
