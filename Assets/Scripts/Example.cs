@@ -14,11 +14,6 @@ public class Example: MonoBehaviour
     private SocketIO socket;
     private Text content;
 
-    private void Awake ()
-    {
-        DontDestroyOnLoad(gameObject);
-    }
-
     private void OnEnable ()
     {
         var canvas = GameObject.Find("Canvas");

@@ -23,7 +23,10 @@ public class SocketIO: MonoBehaviour
 
     public void On (string name, Action<string> action)
     {
-        events.Add(name, action);
+        if (events.ContainsKey(name))
+            events[name] = action;
+        else
+            events.Add(name, action);
     }
 
     public void Off (string name)
@@ -55,6 +58,11 @@ public class SocketIO: MonoBehaviour
     #endregion
 
     #region Private Properties
+
+    private void OnEnable ()
+    {
+        DontDestroyOnLoad(gameObject);
+    }
 
     private void Start ()
     {
